@@ -5,9 +5,9 @@ spring:
   application:
     name: auth-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/banking
-    username: banking_user
-    password: ${POSTGRES_PASSWORD}
+    url: jdbc:postgresql://localhost:5433/auth_db
+    username: auth_user
+    password: auth_password
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -22,10 +22,10 @@ spring:
     baseline-on-migrate: true
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: my_super_secret_jwt_key_for_development_only_change_in_production_256bits
   expiration-ms: 1800000 # 30 minutes
   refresh-expiration-ms: 604800000 # 7 days
 
 redis:
-  host: ${REDIS_HOST:localhost}
+  host: localhost
   port: 6379

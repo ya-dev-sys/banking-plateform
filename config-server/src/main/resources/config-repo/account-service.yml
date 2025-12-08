@@ -5,9 +5,9 @@ spring:
   application:
     name: account-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/banking
-    username: banking_user
-    password: ${POSTGRES_PASSWORD}
+    url: jdbc:postgresql://localhost:5434/account_db
+    username: account_user
+    password: ${ACCOUNT_DB_PASSWORD:account_password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
