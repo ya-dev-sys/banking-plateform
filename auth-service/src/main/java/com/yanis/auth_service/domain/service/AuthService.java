@@ -1,19 +1,37 @@
 package com.yanis.auth_service.domain.service;
 
+import java.time.LocalDateTime;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.yanis.auth_service.domain.exception.InvalidCredentialsException;
 import com.yanis.auth_service.domain.exception.UserAlreadyExistsException;
 import com.yanis.auth_service.domain.model.User;
 import com.yanis.auth_service.domain.port.in.LoginUserUseCase;
 import com.yanis.auth_service.domain.port.in.RegisterUserUseCase;
 import com.yanis.auth_service.domain.port.out.UserRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
+/**
+ * Core authentication service implementing user registration and login.
+ *
+ * <p>
+ * This service handles:
+ * <ul>
+ * <li>User registration with email uniqueness validation</li>
+ * <li>Password hashing using BCrypt</li>
+ * <li>User authentication with credential verification</li>
+ * <li>JWT token generation for authenticated users</li>
+ * </ul>
+ *
+ * @see RegisterUserUseCase
+ * @see LoginUserUseCase
+ * @see JwtService
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
