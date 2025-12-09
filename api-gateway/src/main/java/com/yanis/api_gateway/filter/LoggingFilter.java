@@ -3,11 +3,12 @@ package com.yanis.api_gateway.filter;
 import java.time.Duration;
 import java.time.Instant;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.stereotype.Component;
 
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 /**
@@ -23,8 +24,9 @@ import reactor.core.publisher.Mono;
  * </ul>
  */
 @Component
-@Slf4j
 public class LoggingFilter extends AbstractGatewayFilterFactory<LoggingFilter.Config> {
+
+    private static final Logger logger = LoggerFactory.getLogger(LoggingFilter.class);
 
     public LoggingFilter() {
         super(Config.class);
@@ -39,7 +41,7 @@ public class LoggingFilter extends AbstractGatewayFilterFactory<LoggingFilter.Co
             String path = exchange.getRequest().getPath().toString();
             String traceId = exchange.getRequest().getId();
 
-            log.info(">>> Incoming request: {} {} [traceId: {}]", method, path, traceId);
+            logger.info(">>> Incoming request: {} {} [traceId: {}]", method, path, traceId);
 
             return chain.filter(exchange).then(Mono.fromRunnable(() -> {
                 Instant endTime = Instant.now();
@@ -49,7 +51,7 @@ public class LoggingFilter extends AbstractGatewayFilterFactory<LoggingFilter.Co
                         ? exchange.getResponse().getStatusCode().value()
                         : 0;
 
-                log.info("<<< Response: {} {} - Status: {} - Duration: {}ms [traceId: {}]",
+                logger.info("<<< Response: {} {} - Status: {} - Duration: {}ms [traceId: {}]",
                         method, path, statusCode, duration.toMillis(), traceId);
             }));
         };
