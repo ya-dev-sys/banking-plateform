@@ -8,8 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import com.yanis.api_gateway.filter.LoggingFilter;
 import com.yanis.api_gateway.filter.RateLimitFilter;
 
-import lombok.RequiredArgsConstructor;
-
 /**
  * Gateway configuration for routes and filters.
  *
@@ -22,11 +20,16 @@ import lombok.RequiredArgsConstructor;
  * </ul>
  */
 @Configuration
-@RequiredArgsConstructor
+@org.springframework.context.annotation.Profile("!test")
 public class GatewayConfig {
 
         private final LoggingFilter loggingFilter;
         private final RateLimitFilter rateLimitFilter;
+
+        public GatewayConfig(LoggingFilter loggingFilter, RateLimitFilter rateLimitFilter) {
+                this.loggingFilter = loggingFilter;
+                this.rateLimitFilter = rateLimitFilter;
+        }
 
         /**
          * Configures Gateway routes with custom filters.

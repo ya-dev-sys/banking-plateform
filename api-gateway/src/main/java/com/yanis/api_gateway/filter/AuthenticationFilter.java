@@ -1,18 +1,26 @@
 package com.yanis.api_gateway.filter;
 
+import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yanis.api_gateway.security.JwtTokenProvider;
 
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 /**
@@ -22,30 +30,19 @@ import reactor.core.publisher.Mono;
  * Validates JWT tokens from Authorization header and injects user context
  * into request headers for downstream services.
  * </p>
- *
- * <p>
- * Flow:
- * <ol>
- * <li>Extract "Authorization: Bearer {token}" header</li>
- * <li>Validate token signature and expiration</li>
- * <li>Extract user info (email, roles)</li>
- * <li>Inject headers: X-User-Email, X-User-Roles</li>
- * <li>If invalid: return 401 Unauthorized</li>
- * </ol>
- *
- * <p>
- * <strong>Note:</strong> Public endpoints (like /auth/**) bypass this filter.
- * </p>
  */
 @Component
-@Slf4j
 public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private static final Logger logger = LoggerFactory.getLogger(AuthenticationFilter.class);
 
-    public AuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+    private final JwtTokenProvider jwtTokenProvider;
+    private final ObjectMapper objectMapper;
+
+    public AuthenticationFilter(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper) {
         super(Config.class);
         this.jwtTokenProvider = jwtTokenProvider;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -56,7 +53,6 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
             // Skip authentication for public endpoints
             if (isPublicEndpoint(path)) {
-                log.debug("Public endpoint accessed: {}", path);
                 return chain.filter(exchange);
             }
 
@@ -64,7 +60,6 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.warn("Missing or invalid Authorization header for path: {}", path);
                 return onError(exchange, "Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
             }
 
@@ -72,7 +67,6 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
             // Validate token
             if (!jwtTokenProvider.validateToken(token)) {
-                log.warn("Invalid JWT token for path: {}", path);
                 return onError(exchange, "Invalid or expired token", HttpStatus.UNAUTHORIZED);
             }
 
@@ -86,54 +80,38 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                     .header("X-User-Roles", String.join(",", roles))
                     .build();
 
-            ServerWebExchange mutatedExchange = exchange.mutate()
-                    .request(mutatedRequest)
-                    .build();
-
-            log.debug("Authenticated user: {} with roles: {}", email, roles);
-
-            return chain.filter(mutatedExchange);
+            return chain.filter(exchange.mutate().request(mutatedRequest).build());
         };
     }
 
-    /**
-     * Checks if the endpoint is public (no authentication required).
-     *
-     * @param path Request path.
-     * @return true if public endpoint, false otherwise.
-     */
     private boolean isPublicEndpoint(String path) {
         return path.startsWith("/api/auth/") ||
                 path.startsWith("/actuator/") ||
                 path.equals("/health");
     }
 
-    /**
-     * Returns error response for authentication failures.
-     *
-     * @param exchange ServerWebExchange.
-     * @param message  Error message.
-     * @param status   HTTP status code.
-     * @return Mono with error response.
-     */
     private Mono<Void> onError(ServerWebExchange exchange, String message, HttpStatus status) {
         exchange.getResponse().setStatusCode(status);
-        exchange.getResponse().getHeaders().add("Content-Type", "application/json");
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
-        String errorResponse = String.format(
-                "{\"error\":\"%s\",\"message\":\"%s\",\"path\":\"%s\"}",
-                status.getReasonPhrase(),
-                message,
-                exchange.getRequest().getPath());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, message);
+        problemDetail.setTitle(status.getReasonPhrase());
+        problemDetail.setInstance(URI.create(exchange.getRequest().getPath().toString()));
+        problemDetail.setProperty("timestamp", Instant.now());
 
-        return exchange.getResponse().writeWith(
-                Mono.just(exchange.getResponse().bufferFactory().wrap(errorResponse.getBytes())));
+        byte[] bytes;
+        try {
+            bytes = objectMapper.writeValueAsBytes(problemDetail);
+        } catch (JsonProcessingException e) {
+            logger.error("Error writing JSON response", e);
+            bytes = "{\"title\":\"Internal Server Error\",\"status\":500}".getBytes();
+            exchange.getResponse().setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
+        return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
-    /**
-     * Configuration class for the filter.
-     */
     public static class Config {
-        // Configuration properties if needed
     }
 }
