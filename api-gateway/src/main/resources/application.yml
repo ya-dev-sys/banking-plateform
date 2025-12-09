@@ -4,38 +4,14 @@ server:
 spring:
   application:
     name: api-gateway
-
+  config:
+    import: "optional:configserver:http://localhost:8888/"
   cloud:
     gateway:
-      routes:
-        # Auth Service Route
-        - id: auth-service
-          uri: lb://AUTH-SERVICE
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-            - name: CircuitBreaker
-              args:
-                name: authServiceCircuitBreaker
-                fallbackUri: forward:/fallback/auth
-            - name: Retry
-              args:
-                retries: 3
-                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
-                methods: GET,POST
-                backoff:
-                  firstBackoff: 50ms
-                  maxBackoff: 500ms
-
-      # Global filters applied to all routes
-      default-filters:
-        - name: RequestRateLimiter
-          args:
-            redis-rate-limiter:
-              replenishRate: 100
-              burstCapacity: 200
-              requestedTokens: 1
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
 
   # Redis Configuration
   data:
@@ -104,3 +80,8 @@ resilience4j:
     instances:
       authServiceCircuitBreaker:
         timeout-duration: 3s
+
+gateway:
+  rate-limit:
+    requests: 100
+    window-seconds: 60
